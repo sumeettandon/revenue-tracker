@@ -173,9 +173,10 @@ def login():
 def logout():
     logout_user()
     flash('You have been logged out.', 'info')
-    return redirect(url_for('index'))
+    return redirect(url_for('login'))
 
 @app.route('/')
+@login_required
 def index():
     opportunities = Opportunity.query.order_by(Opportunity.start_date.desc()).all()
     return render_template('index.html', opportunities=opportunities)
