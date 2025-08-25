@@ -9,7 +9,7 @@ import click # Keep click here as it's used for CLI commands
 from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, inspect
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- App Configuration ---
@@ -239,7 +239,6 @@ def delete_opportunity(id):
 @login_required
 def clone_opportunity(id):
     """Clones an existing opportunity and redirects to the edit page."""
-    from sqlalchemy import inspect
     opp_to_clone = db.get_or_404(Opportunity, id)
 
     # Create a new opportunity object by copying attributes
@@ -346,7 +345,7 @@ def dashboard():
 def download_spreadsheet():
     """Downloads all data as an Excel file."""
     query = db.session.query(Opportunity).statement
-    df = pd.read_sql(query, db.session.bind)
+    df = pd.read_sql(query, db.engine)
 
     # Convert enum objects to their string values for cleaner Excel output.
     for col in df.columns:
