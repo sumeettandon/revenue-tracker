@@ -1,46 +1,76 @@
-// This function runs when the dashboard page is loaded
-document.addEventListener('DOMContentLoaded', function () {
-    // Fetch data from our API endpoint
-    fetch('/api/revenue-by-unit-quarter')
+/**
+ * Creates a stacked bar chart on a given canvas element.
+ * @param {string} canvasId The ID of the canvas element.
+ * @param {string} apiUrl The API endpoint to fetch data from.
+ * @param {string} titleText The title to display for the chart.
+ */
+function createStackedBarChart(canvasId, apiUrl, titleText) {
+    fetch(apiUrl)
         .then(response => response.json())
         .then(data => {
-            // Get the canvas element from the HTML
-            const ctx = document.getElementById('revenueByUnitChart').getContext('2d');
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
 
-            // Create a new bar chart
+            // Check if there's any data to display by summing all data points.
+            const total = data.datasets.reduce((sum, dataset) => sum + dataset.data.reduce((s, v) => s + v, 0), 0);
+
+            if (data.labels.length === 0 || total === 0) {
+                // If no data, display a message instead of an empty chart.
+                canvas.parentElement.innerHTML = '<div class="text-center text-muted p-5">No data available to display.</div>';
+                return;
+            }
+
             new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: data.labels, // e.g., ["2024 Q1", "2024 Q2"]
+                    labels: data.labels,
                     datasets: data.datasets.map(dataset => ({
                         ...dataset,
-                        // You can add specific styling for each dataset here
                     }))
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
                             position: 'top',
                         },
                         title: {
                             display: true,
-                            text: 'Projected Revenue (Revenue * Conversion %)'
+                            text: titleText
                         }
                     },
                     scales: {
                         x: {
-                            stacked: true, // Stack bars for the same quarter
+                            stacked: true,
                         },
                         y: {
                             stacked: true,
                             beginAtZero: true,
                             ticks: {
-                                callback: function(value) { return '$' + value.toLocaleString(); }
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
                             }
                         }
-                    }
+                    },
                 }
             });
         });
+}
+
+// This function runs when the dashboard page is loaded
+document.addEventListener('DOMContentLoaded', function () {
+    createStackedBarChart(
+        'revenueByUnitChart',
+        '/api/revenue-by-unit-quarter',
+        'Projected Revenue (Revenue * Conversion %)'
+    );
+
+    createStackedBarChart(
+        'revenueByOriginatingTypeChart',
+        '/api/revenue-by-originating-type',
+        'Projected Revenue by Originating Type (Grouped by Unit)'
+    );
 });

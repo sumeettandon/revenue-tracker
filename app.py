@@ -210,6 +210,30 @@ def delete_opportunity(id):
     db.session.commit()
     return redirect(url_for('index'))
 
+@app.route('/clone/<int:id>', methods=['POST'])
+@login_required
+def clone_opportunity(id):
+    """Clones an existing opportunity and redirects to the edit page."""
+    from sqlalchemy import inspect as sa_inspect
+    opp_to_clone = db.get_or_404(Opportunity, id)
+
+    # Create a new opportunity object by copying attributes
+    new_opp = Opportunity()
+    mapper = sa_inspect(Opportunity)
+    for col in mapper.columns:
+        # Don't copy the primary key
+        if not col.primary_key:
+            setattr(new_opp, col.key, getattr(opp_to_clone, col.key))
+
+    # Differentiate the cloned opportunity's name
+    new_opp.project_name = f"Clone of {opp_to_clone.project_name}"
+
+    db.session.add(new_opp)
+    db.session.commit()  # Commit to get the new ID
+
+    flash(f'Successfully cloned "{opp_to_clone.project_name}". You are now editing the new copy.', 'success')
+    return redirect(url_for('edit_opportunity', id=new_opp.id))
+
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_spreadsheet():
@@ -365,6 +389,45 @@ def revenue_by_unit_quarter():
 
     return jsonify({'labels': labels, 'datasets': datasets})
 
+@app.route('/api/revenue-by-originating-type')
+@login_required
+def revenue_by_originating_type():
+    """API endpoint for revenue by originating revenue type, grouped by unit."""
+    results = db.session.query(
+        Opportunity.unit,
+        Opportunity.originating_revenue_type,
+        func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
+    ).group_by(
+        Opportunity.unit,
+        Opportunity.originating_revenue_type
+    ).order_by(
+        Opportunity.unit,
+        Opportunity.originating_revenue_type
+    ).all()
+
+    # Process data for Chart.js
+    data = {}
+    for row in results:
+        origin_type_label = row.originating_revenue_type.value
+        if origin_type_label not in data:
+            data[origin_type_label] = {}
+        data[origin_type_label][row.unit.value] = row.projected_revenue
+
+    # Get all possible originating revenue types for labels, sorted by Enum
+    # definition order, but only include those that are present in the data.
+    all_possible_labels = [e.value for e in sorted(list(OriginatingRevenueTypeEnum), key=lambda e: e.name)]
+    labels = [label for label in all_possible_labels if label in data]
+    units = sorted(list(UnitEnum), key=lambda e: e.value)
+    datasets = []
+
+    for unit in units:
+        dataset = {
+            'label': unit.value,
+            'data': [data.get(label, {}).get(unit.value, 0) for label in labels],
+        }
+        datasets.append(dataset)
+
+    return jsonify({'labels': labels, 'datasets': datasets})
 
 @app.cli.command("create-user")
 @click.argument('username')
