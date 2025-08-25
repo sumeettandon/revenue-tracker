@@ -175,6 +175,31 @@ def logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('register'))
+
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists. Please choose a different one.', 'danger')
+            return redirect(url_for('register'))
+
+        new_user = User(username=username, can_upload=False) # New users cannot upload by default
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Registration successful. Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
 @app.route('/')
 @login_required
 def index():
@@ -214,12 +239,12 @@ def delete_opportunity(id):
 @login_required
 def clone_opportunity(id):
     """Clones an existing opportunity and redirects to the edit page."""
-    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import inspect
     opp_to_clone = db.get_or_404(Opportunity, id)
 
     # Create a new opportunity object by copying attributes
     new_opp = Opportunity()
-    mapper = sa_inspect(Opportunity)
+    mapper = inspect(Opportunity)
     for col in mapper.columns:
         # Don't copy the primary key
         if not col.primary_key:
@@ -388,62 +413,6 @@ def revenue_by_unit_quarter():
         datasets.append(dataset)
 
     return jsonify({'labels': labels, 'datasets': datasets})
-
-@app.route('/api/revenue-by-originating-type')
-@login_required
-def revenue_by_originating_type():
-    """API endpoint for revenue by originating revenue type, grouped by unit."""
-    results = db.session.query(
-        Opportunity.unit,
-        Opportunity.originating_revenue_type,
-        func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
-    ).group_by(
-        Opportunity.unit,
-        Opportunity.originating_revenue_type
-    ).order_by(
-        Opportunity.unit,
-        Opportunity.originating_revenue_type
-    ).all()
-
-    # Process data for Chart.js
-    data = {}
-    for row in results:
-        origin_type_label = row.originating_revenue_type.value
-        if origin_type_label not in data:
-            data[origin_type_label] = {}
-        data[origin_type_label][row.unit.value] = row.projected_revenue
-
-    # Get all possible originating revenue types for labels, sorted by Enum
-    # definition order, but only include those that are present in the data.
-    all_possible_labels = [e.value for e in sorted(list(OriginatingRevenueTypeEnum), key=lambda e: e.name)]
-    labels = [label for label in all_possible_labels if label in data]
-    units = sorted(list(UnitEnum), key=lambda e: e.value)
-    datasets = []
-
-    for unit in units:
-        dataset = {
-            'label': unit.value,
-            'data': [data.get(label, {}).get(unit.value, 0) for label in labels],
-        }
-        datasets.append(dataset)
-
-    return jsonify({'labels': labels, 'datasets': datasets})
-
-@app.cli.command("create-user")
-@click.argument('username')
-@click.argument('password')
-@click.option('--can-upload', is_flag=True, help='Grant upload permission to this user.')
-def create_user_command(username, password, can_upload):
-    """Creates a new user."""
-    with app.app_context():
-        if User.query.filter_by(username=username).first():
-            click.echo(f"User '{username}' already exists.")
-            return
-        user = User(username=username, can_upload=can_upload)
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        click.echo(f"User '{username}' created successfully with upload permission: {can_upload}.")
 
 @app.cli.command("init-db")
 def init_db_command():
