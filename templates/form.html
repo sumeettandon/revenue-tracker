@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ action }} Opportunity{% endblock %}
+
+{% block content %}
+<div class="pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ action }} Opportunity</h1>
+</div>
+
+<form method="POST">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label for="project_name" class="form-label">Opportunity/Project Name</label>
+            <input type="text" class="form-control" id="project_name" name="project_name" value="{{ opportunity.project_name if opportunity else '' }}" required>
+        </div>
+        <div class="col-md-6">
+            <label for="client_director" class="form-label">Client Director</label>
+            <input type="text" class="form-control" id="client_director" name="client_director" value="{{ opportunity.client_director if opportunity else '' }}">
+        </div>
+
+        <div class="col-md-6">
+            <label for="unit" class="form-label">Unit</label>
+            <select class="form-select" id="unit" name="unit" required>
+                {% for member in UnitEnum %}
+                <option value="{{ member.name }}" {% if opportunity and opportunity.unit == member %}selected{% endif %}>{{ member.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="revenue_portfolio" class="form-label">Revenue Portfolio</label>
+            <select class="form-select" id="revenue_portfolio" name="revenue_portfolio" required>
+                {% for member in RevenuePortfolioEnum %}
+                <option value="{{ member.name }}" {% if opportunity and opportunity.revenue_portfolio == member %}selected{% endif %}>{{ member.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label for="csg_owner" class="form-label">CSG Owner</label>
+            <select class="form-select" id="csg_owner" name="csg_owner" required>
+                {% for member in CSGOwnerEnum %}
+                <option value="{{ member.name }}" {% if opportunity and opportunity.csg_owner == member %}selected{% endif %}>{{ member.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="delivery_owner" class="form-label">Delivery Owner</label>
+            <select class="form-select" id="delivery_owner" name="delivery_owner" required>
+                {% for member in DeliveryOwnerEnum %}
+                <option value="{{ member.name }}" {% if opportunity and opportunity.delivery_owner == member %}selected{% endif %}>{{ member.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label for="originating_revenue_type" class="form-label">Originating Revenue Type</label>
+            <select class="form-select" id="originating_revenue_type" name="originating_revenue_type" required>
+                {% for member in OriginatingRevenueTypeEnum %}
+                <option value="{{ member.name }}" {% if opportunity and opportunity.originating_revenue_type == member %}selected{% endif %}>{{ member.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="revenue_type" class="form-label">Revenue Type</label>
+            <select class="form-select" id="revenue_type" name="revenue_type" required>
+                {% for member in RevenueTypeEnum %}
+                <option value="{{ member.name }}" {% if opportunity and opportunity.revenue_type == member %}selected{% endif %}>{{ member.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label for="revenue" class="form-label">Revenue</label>
+            <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" class="form-control" id="revenue" name="revenue" value="{{ opportunity.revenue if opportunity else '' }}" required>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <label for="conversion" class="form-label">Conversion (%)</label>
+            <select class="form-select" id="conversion" name="conversion" required>
+                {% for val in [25, 50, 75, 90, 100] %}
+                <option value="{{ val }}" {% if opportunity and opportunity.conversion == val %}selected{% endif %}>{{ val }}%</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label for="start_date" class="form-label">Start Date</label>
+            <input type="date" class="form-control" id="start_date" name="start_date" value="{{ opportunity.start_date.strftime('%Y-%m-%d') if opportunity and opportunity.start_date else '' }}">
+        </div>
+        <div class="col-md-6">
+            <label for="end_date" class="form-label">End Date</label>
+            <input type="date" class="form-control" id="end_date" name="end_date" value="{{ opportunity.end_date.strftime('%Y-%m-%d') if opportunity and opportunity.end_date else '' }}">
+        </div>
+
+        <div class="col-md-6">
+            <label for="ritm" class="form-label">RITM</label>
+            <input type="text" class="form-control" id="ritm" name="ritm" value="{{ opportunity.ritm if opportunity else '' }}">
+        </div>
+        <div class="col-md-6">
+            <label for="sow_number" class="form-label">SOW Number</label>
+            <input type="text" class="form-control" id="sow_number" name="sow_number" value="{{ opportunity.sow_number if opportunity else '' }}">
+        </div>
+    </div>
+
+    <hr class="my-4">
+
+    <button class="w-100 btn btn-primary btn-lg" type="submit">Save Opportunity</button>
+</form>
+{% endblock %}

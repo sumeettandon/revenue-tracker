@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Spreadsheet{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Upload Spreadsheet</h1>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% if current_user.can_upload %}
+    <p>Upload an Excel file (<code>.xlsx</code>) with opportunity data. The file must contain the exact column headers as specified in the project requirements.</p>
+    <form method="post" enctype="multipart/form-data" class="mt-4">
+        <div class="mb-3">
+            <input class="form-control" type="file" id="file" name="file" accept=".xlsx, .xls" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload and Process File</button>
+    </form>
+{% else %}
+    <div class="alert alert-info" role="alert">
+        You do not have permission to upload spreadsheets. Please contact an administrator.
+    </div>
+{% endif %}
+
+{% endblock %}
