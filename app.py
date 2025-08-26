@@ -154,7 +154,7 @@ def _populate_opportunity_from_form(opportunity, form_data):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -163,7 +163,7 @@ def login():
             login_user(user, remember=True) # Remember user for future sessions
             flash('Logged in successfully!', 'success')
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
+            return redirect(next_page or url_for('dashboard'))
         else:
             flash('Login Unsuccessful. Please check username and password', 'danger')
     return render_template('login.html')
@@ -178,7 +178,7 @@ def logout():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -202,7 +202,12 @@ def register():
 
 @app.route('/')
 @login_required
-def index():
+def dashboard():
+    return render_template('dashboard.html')
+
+@app.route('/opportunities')
+@login_required
+def opportunities():
     opportunities = Opportunity.query.order_by(Opportunity.start_date.desc()).all()
     return render_template('index.html', opportunities=opportunities)
 
@@ -214,7 +219,7 @@ def add_opportunity():
         _populate_opportunity_from_form(new_opp, request.form)
         db.session.add(new_opp)
         db.session.commit()
-        return redirect(url_for('index'))
+        return redirect(url_for('opportunities'))
     return render_template('form.html', action="Add", opportunity=None)
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
@@ -224,7 +229,7 @@ def edit_opportunity(id):
     if request.method == 'POST':
         _populate_opportunity_from_form(opp_to_edit, request.form)
         db.session.commit()
-        return redirect(url_for('index'))
+        return redirect(url_for('opportunities'))
     return render_template('form.html', action="Edit", opportunity=opp_to_edit)
 
 @app.route('/delete/<int:id>', methods=['POST'])
@@ -233,7 +238,7 @@ def delete_opportunity(id):
     opp_to_delete = db.get_or_404(Opportunity, id)
     db.session.delete(opp_to_delete)
     db.session.commit()
-    return redirect(url_for('index'))
+    return redirect(url_for('opportunities'))
 
 @app.route('/clone/<int:id>', methods=['POST'])
 @login_required
@@ -263,7 +268,7 @@ def clone_opportunity(id):
 def upload_spreadsheet():
     if not current_user.can_upload:
         flash('You do not have permission to upload spreadsheets.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -327,18 +332,13 @@ def upload_spreadsheet():
 
                 db.session.commit()
                 flash('Spreadsheet uploaded and data imported successfully!', 'success')
-                return redirect(url_for('index'))
+                return redirect(url_for('opportunities'))
             except Exception as e:
                 db.session.rollback()
                 flash(f'An error occurred during upload: {e}', 'danger')
                 return redirect(request.url)
 
     return render_template('upload.html')
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    return render_template('dashboard.html')
 
 @app.route('/download')
 @login_required
