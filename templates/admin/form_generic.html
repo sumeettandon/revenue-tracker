@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+</div>
+
+<form method="POST">
+    <div class="mb-3">
+        <label for="name" class="form-label">Name</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ item.name if item else '' }}" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="{{ url_for('manage_lookup_table', model_name=model_name) }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

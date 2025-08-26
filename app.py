@@ -1,6 +1,7 @@
 import os
 import enum
 import io
+from functools import wraps
 from datetime import date
 
 import pandas as pd
@@ -34,64 +35,47 @@ db = SQLAlchemy(app)
 instance_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'instance')
 os.makedirs(instance_path, exist_ok=True)
 
-# --- Enums for Dropdown Choices ---
-# Using enums makes the choices consistent and easy to manage.
+# --- Database Models ---
 
-class RevenuePortfolioEnum(enum.Enum):
-    TO = "T&O"
-    MDCC = "MDCC"
-    HEALTH_SOLUTIONS = "Health Solutions"
-    INFRA_OPERATIONS = "Infrastructure Operations"
-    SOLUTIONS_ENGINEERING = "Solutions Engineering"
-    DATA_ANALYTICS = "Data and Analytics"
-    PMO = "PMO"
+class RevenuePortfolio(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    def __repr__(self): return f'<RevenuePortfolio {self.name}>'
 
-class UnitEnum(enum.Enum):
-    ADM = "ADM"
-    IQE = "IQE"
-    DX = "DX"
-    ECAS = "ECAS"
-    EAIS = "EAIS"
+class Unit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    def __repr__(self): return f'<Unit {self.name}>'
 
-class CSGOwnerEnum(enum.Enum):
-    AJAY = "Ajay"
-    JOBY = "Joby"
-    JUBY = "Juby"
-    SHALINI = "Shalini"
-    JASMEET = "Jasmeet"
-    MANISH = "Manish"
+class CSGOwner(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    def __repr__(self): return f'<CSGOwner {self.name}>'
 
-class DeliveryOwnerEnum(enum.Enum):
-    SUMEET = "Sumeet"
-    PRASHANT = "Prashant"
-    VIKAS = "Vikas"
-    MAYANK = "Mayank"
+class DeliveryOwner(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    def __repr__(self): return f'<DeliveryOwner {self.name}>'
 
-class OriginatingRevenueTypeEnum(enum.Enum):
-    A = "A-Current SoW"
-    B = "B-SoW Extension"
-    C = "C-Pipeline/RFP"
-    D = "D-New Ideas"
-    E = "E-Pitch Industry Ideas"
-    F = "F-Incubate New Ideas"
+class OriginatingRevenueType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    def __repr__(self): return f'<OriginatingRevenueType {self.name}>'
 
-class RevenueTypeEnum(enum.Enum):
-    C = "C-Pipeline/RFP"
-    D = "D-New Ideas"
-    E = "E-Pitch Industry Ideas"
-    F = "F-Incubate New Ideas"
-
-# --- Database Model ---
+class RevenueType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    def __repr__(self): return f'<RevenueType {self.name}>'
 
 class Opportunity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     project_name = db.Column(db.String(200), nullable=False)
-    revenue_portfolio = db.Column(db.Enum(RevenuePortfolioEnum), nullable=False)
-    unit = db.Column(db.Enum(UnitEnum), nullable=False)
-    csg_owner = db.Column(db.Enum(CSGOwnerEnum), nullable=False)
-    delivery_owner = db.Column(db.Enum(DeliveryOwnerEnum), nullable=False)
-    originating_revenue_type = db.Column(db.Enum(OriginatingRevenueTypeEnum), nullable=False)
-    revenue_type = db.Column(db.Enum(RevenueTypeEnum), nullable=False)
+    revenue_portfolio_id = db.Column(db.Integer, db.ForeignKey('revenue_portfolio.id'), nullable=False)
+    unit_id = db.Column(db.Integer, db.ForeignKey('unit.id'), nullable=False)
+    csg_owner_id = db.Column(db.Integer, db.ForeignKey('csg_owner.id'), nullable=False)
+    delivery_owner_id = db.Column(db.Integer, db.ForeignKey('delivery_owner.id'), nullable=False)
+    originating_revenue_type_id = db.Column(db.Integer, db.ForeignKey('originating_revenue_type.id'), nullable=False)
+    revenue_type_id = db.Column(db.Integer, db.ForeignKey('revenue_type.id'), nullable=False)
     conversion = db.Column(db.Integer, nullable=False) # Percentage
     ritm = db.Column(db.String(100))
     sow_number = db.Column(db.String(100))
@@ -99,6 +83,13 @@ class Opportunity(db.Model):
     end_date = db.Column(db.Date)
     revenue = db.Column(db.Float, nullable=False)
     client_director = db.Column(db.String(100))
+
+    revenue_portfolio = db.relationship('RevenuePortfolio', backref=db.backref('opportunities', lazy=True))
+    unit = db.relationship('Unit', backref=db.backref('opportunities', lazy=True))
+    csg_owner = db.relationship('CSGOwner', backref=db.backref('opportunities', lazy=True))
+    delivery_owner = db.relationship('DeliveryOwner', backref=db.backref('opportunities', lazy=True))
+    originating_revenue_type = db.relationship('OriginatingRevenueType', backref=db.backref('opportunities', lazy=True))
+    revenue_type = db.relationship('RevenueType', backref=db.backref('opportunities', lazy=True))
 
     def __repr__(self):
         return f'<Opportunity {self.project_name}>'
@@ -108,6 +99,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
     can_upload = db.Column(db.Boolean, default=False) # New field for upload permission
+    is_admin = db.Column(db.Boolean, default=False) # New field for admin permission
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -119,16 +111,26 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- Helper function to pass enums to all templates ---
+# --- Helper Functions ---
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash("You must be an admin to view this page.", "danger")
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.context_processor
-def inject_enums():
+def inject_lookup_data():
     return {
-        'RevenuePortfolioEnum': RevenuePortfolioEnum,
-        'UnitEnum': UnitEnum,
-        'CSGOwnerEnum': CSGOwnerEnum,
-        'DeliveryOwnerEnum': DeliveryOwnerEnum,
-        'OriginatingRevenueTypeEnum': OriginatingRevenueTypeEnum,
-        'RevenueTypeEnum': RevenueTypeEnum,
+        'all_revenue_portfolios': RevenuePortfolio.query.order_by(RevenuePortfolio.name).all(),
+        'all_units': Unit.query.order_by(Unit.name).all(),
+        'all_csg_owners': CSGOwner.query.order_by(CSGOwner.name).all(),
+        'all_delivery_owners': DeliveryOwner.query.order_by(DeliveryOwner.name).all(),
+        'all_originating_revenue_types': OriginatingRevenueType.query.order_by(OriginatingRevenueType.name).all(),
+        'all_revenue_types': RevenueType.query.order_by(RevenueType.name).all(),
         'current_user': current_user # Make current_user available in all templates
     }
 
@@ -136,12 +138,12 @@ def inject_enums():
 def _populate_opportunity_from_form(opportunity, form_data):
     """Helper function to populate an Opportunity object from form data."""
     opportunity.project_name=form_data['project_name']
-    opportunity.revenue_portfolio=RevenuePortfolioEnum[form_data['revenue_portfolio']]
-    opportunity.unit=UnitEnum[form_data['unit']]
-    opportunity.csg_owner=CSGOwnerEnum[form_data['csg_owner']]
-    opportunity.delivery_owner=DeliveryOwnerEnum[form_data['delivery_owner']]
-    opportunity.originating_revenue_type=OriginatingRevenueTypeEnum[form_data['originating_revenue_type']]
-    opportunity.revenue_type=RevenueTypeEnum[form_data['revenue_type']]
+    opportunity.revenue_portfolio_id=int(form_data['revenue_portfolio'])
+    opportunity.unit_id=int(form_data['unit'])
+    opportunity.csg_owner_id=int(form_data['csg_owner'])
+    opportunity.delivery_owner_id=int(form_data['delivery_owner'])
+    opportunity.originating_revenue_type_id=int(form_data['originating_revenue_type'])
+    opportunity.revenue_type_id=int(form_data['revenue_type'])
     opportunity.conversion=int(form_data['conversion'])
     opportunity.ritm=form_data['ritm']
     opportunity.sow_number=form_data['sow_number']
@@ -192,7 +194,7 @@ def register():
             flash('Username already exists. Please choose a different one.', 'danger')
             return redirect(url_for('register'))
 
-        new_user = User(username=username, can_upload=False) # New users cannot upload by default
+        new_user = User(username=username, can_upload=False, is_admin=False) # New users are not admins
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
@@ -283,49 +285,55 @@ def upload_spreadsheet():
             try:
                 df = pd.read_excel(file, engine='openpyxl')
 
-                # Define expected columns and their corresponding model attribute and type/enum
-                expected_columns = {
-                    'Opportunity/Project name': ('project_name', str),
-                    'Revenue Portfolio': ('revenue_portfolio', RevenuePortfolioEnum),
-                    'Unit': ('unit', UnitEnum),
-                    'CSG Owner': ('csg_owner', CSGOwnerEnum),
-                    'Delivery Owner': ('delivery_owner', DeliveryOwnerEnum),
-                    'Originating Revenue Type': ('originating_revenue_type', OriginatingRevenueTypeEnum),
-                    'Revenue Type': ('revenue_type', RevenueTypeEnum),
-                    'Conversion': ('conversion', int),
-                    'RITM': ('ritm', str),
-                    'SOW': ('sow_number', str),
-                    'Start Date': ('start_date', 'date'),
-                    'End Date': ('end_date', 'date'),
-                    'Revenue': ('revenue', float),
-                    'Client Director': ('client_director', str)
+                # Pre-load lookup data to convert names to IDs
+                lookups = {
+                    'revenue_portfolio_id': {p.name: p.id for p in RevenuePortfolio.query.all()},
+                    'unit_id': {u.name: u.id for u in Unit.query.all()},
+                    'csg_owner_id': {o.name: o.id for o in CSGOwner.query.all()},
+                    'delivery_owner_id': {o.name: o.id for o in DeliveryOwner.query.all()},
+                    'originating_revenue_type_id': {o.name: o.id for o in OriginatingRevenueType.query.all()},
+                    'revenue_type_id': {o.name: o.id for o in RevenueType.query.all()},
+                }
+
+                column_map = {
+                    'Opportunity/Project name': 'project_name',
+                    'Revenue Portfolio': 'revenue_portfolio_id',
+                    'Unit': 'unit_id',
+                    'CSG Owner': 'csg_owner_id',
+                    'Delivery Owner': 'delivery_owner_id',
+                    'Originating Revenue Type': 'originating_revenue_type_id',
+                    'Revenue Type': 'revenue_type_id',
+                    'Conversion': 'conversion',
+                    'RITM': 'ritm',
+                    'SOW': 'sow_number',
+                    'Start Date': 'start_date',
+                    'End Date': 'end_date',
+                    'Revenue': 'revenue',
+                    'Client Director': 'client_director',
                 }
 
                 # Validate that all expected columns are present
-                if not all(col in df.columns for col in expected_columns.keys()):
-                    missing = set(expected_columns.keys()) - set(df.columns)
+                if not all(col in df.columns for col in column_map.keys()):
+                    missing = set(column_map.keys()) - set(df.columns)
                     flash(f'Spreadsheet is missing the following columns: {", ".join(missing)}', 'danger')
                     return redirect(request.url)
 
                 # Process each row in the DataFrame
                 for index, row in df.iterrows():
                     opp_data = {}
-                    for col_name, (attr_name, attr_type) in expected_columns.items():
+                    for col_name, attr_name in column_map.items():
                         value = row.get(col_name)
                         if pd.isna(value):
                             opp_data[attr_name] = None
-                            continue
-
-                        if isinstance(attr_type, type) and issubclass(attr_type, enum.Enum):
-                            # Find enum member by its value (e.g., "T&O")
-                            enum_member = next((e for e in attr_type if e.value == value), None)
-                            if enum_member is None:
+                        elif attr_name in lookups:
+                            lookup_id = lookups[attr_name].get(str(value))
+                            if lookup_id is None:
                                 raise ValueError(f'Invalid value "{value}" for column "{col_name}" on row {index + 2}')
-                            opp_data[attr_name] = enum_member
-                        elif attr_type == 'date':
-                            opp_data[attr_name] = pd.to_datetime(value).date()
+                            opp_data[attr_name] = lookup_id
+                        elif attr_name in ['start_date', 'end_date']:
+                            opp_data[attr_name] = pd.to_datetime(value).date() if value else None
                         else:
-                            opp_data[attr_name] = attr_type(value)
+                            opp_data[attr_name] = value
 
                     new_opp = Opportunity(**opp_data)
                     db.session.add(new_opp)
@@ -347,11 +355,34 @@ def download_spreadsheet():
     query = db.session.query(Opportunity).statement
     df = pd.read_sql(query, db.engine)
 
-    # Convert enum objects to their string values for cleaner Excel output.
-    for col in df.columns:
-        # Check if the column's dtype is 'object' and its non-null values are enums.
-        if df[col].dtype == 'object' and df[col].notna().any() and isinstance(df[col].dropna().iloc[0], enum.Enum):
-            df[col] = df[col].apply(lambda x: x.value if x else None)
+    # Create lookup dictionaries for mapping IDs to names
+    lookups = {
+        'revenue_portfolio_id': {p.id: p.name for p in RevenuePortfolio.query.all()},
+        'unit_id': {u.id: u.name for u in Unit.query.all()},
+        'csg_owner_id': {o.id: o.name for o in CSGOwner.query.all()},
+        'delivery_owner_id': {o.id: o.name for o in DeliveryOwner.query.all()},
+        'originating_revenue_type_id': {o.name: o.id for o in OriginatingRevenueType.query.all()},
+        'revenue_type_id': {o.name: o.id for o in RevenueType.query.all()},
+    }
+
+    # Map foreign key IDs to their string names
+    df['Revenue Portfolio'] = df['revenue_portfolio_id'].map(lookups['revenue_portfolio_id'])
+    df['Unit'] = df['unit_id'].map(lookups['unit_id'])
+    df['CSG Owner'] = df['csg_owner_id'].map(lookups['csg_owner_id'])
+    df['Delivery Owner'] = df['delivery_owner_id'].map(lookups['delivery_owner_id'])
+    df['Originating Revenue Type'] = df['originating_revenue_type_id'].map(lookups['originating_revenue_type_id'])
+    df['Revenue Type'] = df['revenue_type_id'].map(lookups['revenue_type_id'])
+
+    # Select and rename columns for the final Excel file
+    df = df.rename(columns={
+        'project_name': 'Opportunity/Project name',
+        'sow_number': 'SOW',
+        'start_date': 'Start Date',
+        'end_date': 'End Date',
+        'client_director': 'Client Director'
+    })
+    output_columns = ['Opportunity/Project name', 'Revenue Portfolio', 'Unit', 'CSG Owner', 'Delivery Owner', 'Originating Revenue Type', 'Revenue Type', 'conversion', 'ritm', 'SOW', 'Start Date', 'End Date', 'revenue', 'Client Director']
+    df = df[output_columns]
 
     output = io.BytesIO()
     # Use XlsxWriter to create a more professional-looking Excel file
@@ -378,18 +409,18 @@ def download_spreadsheet():
 @login_required
 def revenue_by_unit_quarter():
     """API endpoint to get data for the 'Quarterly Revenue Projection' chart."""
-    results = db.session.query(
-        Opportunity.unit,
+    results = (db.session.query(
+        Unit.name.label('unit_name'),
         extract('year', Opportunity.start_date).label('year'),
         extract('quarter', Opportunity.start_date).label('quarter'),
         func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
-    ).filter(
+    ).join(Unit).filter(
         Opportunity.start_date.isnot(None)
     ).group_by(
-        Opportunity.unit, 'year', 'quarter'
+        'unit_name', 'year', 'quarter'
     ).order_by(
-        'year', 'quarter', Opportunity.unit
-    ).all()
+        'year', 'quarter', 'unit_name'
+    )).all()
 
     # Process data into a format Chart.js can easily use
     data = {}
@@ -397,21 +428,140 @@ def revenue_by_unit_quarter():
         quarter_label = f"{int(row.year)} Q{int(row.quarter)}"
         if quarter_label not in data:
             data[quarter_label] = {}
-        data[quarter_label][row.unit.value] = row.projected_revenue
+        data[quarter_label][row.unit_name] = row.projected_revenue
 
     labels = sorted(data.keys())
-    units = sorted(list(UnitEnum), key=lambda e: e.value)
-    unit_labels = [u.value for u in units]
+    units = [u.name for u in Unit.query.order_by(Unit.name).all()]
     datasets = []
 
-    for unit in units:
+    for unit_name in units:
         dataset = {
-            'label': unit.value,
-            'data': [data[label].get(unit.value, 0) for label in labels]
+            'label': unit_name,
+            'data': [data[label].get(unit_name, 0) for label in labels]
         }
         datasets.append(dataset)
 
     return jsonify({'labels': labels, 'datasets': datasets})
+
+@app.route('/api/revenue-by-originating-type')
+@login_required
+def revenue_by_originating_type():
+    """API endpoint for revenue by originating revenue type, grouped by unit."""
+    results = (db.session.query(
+        Unit.name.label('unit_name'),
+        OriginatingRevenueType.name.label('origin_type_name'),
+        func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
+    ).join(Unit).join(OriginatingRevenueType).group_by(
+        'unit_name',
+        'origin_type_name'
+    ).order_by(
+        'unit_name',
+        'origin_type_name'
+    )).all()
+
+    # Process data for Chart.js
+    data = {}
+    for row in results:
+        origin_type_label = row.origin_type_name
+        if origin_type_label not in data:
+            data[origin_type_label] = {}
+        data[origin_type_label][row.unit_name] = row.projected_revenue
+
+    labels = [e.name for e in OriginatingRevenueType.query.order_by(OriginatingRevenueType.name).all()]
+    units = [u.name for u in Unit.query.order_by(Unit.name).all()]
+    datasets = []
+
+    for unit_name in units:
+        dataset = {
+            'label': unit_name,
+            'data': [data.get(label, {}).get(unit_name, 0) for label in labels],
+        }
+        datasets.append(dataset)
+
+    return jsonify({'labels': labels, 'datasets': datasets})
+
+# --- Admin Routes ---
+
+LOOKUP_MODELS = {
+    'unit': {'class': Unit, 'title': 'Units'},
+    'csg_owner': {'class': CSGOwner, 'title': 'CSG Owners'},
+    'delivery_owner': {'class': DeliveryOwner, 'title': 'Delivery Owners'},
+    'originating_revenue_type': {'class': OriginatingRevenueType, 'title': 'Originating Revenue Types'},
+    'revenue_type': {'class': RevenueType, 'title': 'Revenue Types'},
+    'revenue_portfolio': {'class': RevenuePortfolio, 'title': 'Revenue Portfolios'}
+}
+
+@app.route('/admin')
+@admin_required
+def admin_index():
+    return render_template('admin/index.html', models=LOOKUP_MODELS)
+
+@app.route('/admin/manage/<model_name>')
+@admin_required
+def manage_lookup_table(model_name):
+    if model_name not in LOOKUP_MODELS:
+        flash(f"Invalid model type: {model_name}", "danger")
+        return redirect(url_for('admin_index'))
+
+    model_info = LOOKUP_MODELS[model_name]
+    ModelClass = model_info['class']
+    items = ModelClass.query.order_by(ModelClass.name).all()
+    return render_template('admin/list_generic.html',
+                           items=items,
+                           title=model_info['title'],
+                           model_name=model_name)
+
+@app.route('/admin/manage/<model_name>/add', methods=['GET', 'POST'])
+@admin_required
+def add_lookup_item(model_name):
+    if model_name not in LOOKUP_MODELS:
+        return redirect(url_for('admin_index'))
+
+    model_info = LOOKUP_MODELS[model_name]
+    ModelClass = model_info['class']
+
+    if request.method == 'POST':
+        name = request.form['name']
+        if not name:
+            flash('Name cannot be empty.', 'danger')
+        elif ModelClass.query.filter_by(name=name).first():
+            flash(f'An item with the name "{name}" already exists.', 'danger')
+        else:
+            new_item = ModelClass(name=name)
+            db.session.add(new_item)
+            db.session.commit()
+            flash(f'Successfully added "{name}".', 'success')
+            return redirect(url_for('manage_lookup_table', model_name=model_name))
+
+    return render_template('admin/form_generic.html', title=f"Add New {model_info['title'][:-1]}", item=None, model_name=model_name)
+
+@app.route('/admin/manage/<model_name>/edit/<int:id>', methods=['GET', 'POST'])
+@admin_required
+def edit_lookup_item(model_name, id):
+    if model_name not in LOOKUP_MODELS: return redirect(url_for('admin_index'))
+    ModelClass = LOOKUP_MODELS[model_name]['class']
+    item = db.get_or_404(ModelClass, id)
+
+    if request.method == 'POST':
+        item.name = request.form['name']
+        db.session.commit()
+        flash(f'Successfully updated item.', 'success')
+        return redirect(url_for('manage_lookup_table', model_name=model_name))
+
+    return render_template('admin/form_generic.html', title=f"Edit {LOOKUP_MODELS[model_name]['title'][:-1]}", item=item, model_name=model_name)
+
+@app.route('/admin/manage/<model_name>/delete/<int:id>', methods=['POST'])
+@admin_required
+def delete_lookup_item(model_name, id):
+    if model_name not in LOOKUP_MODELS: return redirect(url_for('admin_index'))
+    ModelClass = LOOKUP_MODELS[model_name]['class']
+    item = db.get_or_404(ModelClass, id)
+    db.session.delete(item)
+    db.session.commit()
+    flash(f'Successfully deleted item.', 'success')
+    return redirect(url_for('manage_lookup_table', model_name=model_name))
+
+# --- CLI Commands ---
 
 @app.cli.command("init-db")
 def init_db_command():
@@ -419,6 +569,37 @@ def init_db_command():
     db.create_all()
     click.echo("Initialized the database.")
 
+@app.cli.command("seed-db")
+def seed_db_command():
+    """Seeds the database with initial lookup data."""
+    lookups = {
+        RevenuePortfolio: ["T&O", "MDCC", "Health Solutions", "Infrastructure Operations", "Solutions Engineering", "Data and Analytics", "PMO"],
+        Unit: ["ADM", "IQE", "DX", "ECAS", "EAIS"],
+        CSGOwner: ["Ajay", "Joby", "Juby", "Shalini", "Jasmeet", "Manish"],
+        DeliveryOwner: ["Sumeet", "Prashant", "Vikas", "Mayank"],
+        OriginatingRevenueType: ["A-Current SoW", "B-SoW Extension", "C-Pipeline/RFP", "D-New Ideas", "E-Pitch Industry Ideas", "F-Incubate New Ideas"],
+        RevenueType: ["C-Pipeline/RFP", "D-New Ideas", "E-Pitch Industry Ideas", "F-Incubate New Ideas"]
+    }
+
+    for model, values in lookups.items():
+        for value in values:
+            if not model.query.filter_by(name=value).first():
+                db.session.add(model(name=value))
+
+    db.session.commit()
+    click.echo("Seeded the database with lookup data.")
+
+@app.cli.command("grant-admin")
+@click.argument('username')
+def grant_admin(username):
+    """Grants admin privileges to a user."""
+    user = User.query.filter_by(username=username).first()
+    if user:
+        user.is_admin = True
+        db.session.commit()
+        click.echo(f"User '{username}' has been granted admin privileges.")
+    else:
+        click.echo(f"User '{username}' not found.")
 
 if __name__ == '__main__':
     with app.app_context():

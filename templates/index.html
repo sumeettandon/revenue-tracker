@@ -32,13 +32,13 @@
             {% for opp in opportunities %}
             <tr>
                 <td>{{ opp.project_name }}</td>
-                <td>{{ opp.unit.value }}</td>
-                <td>{{ opp.revenue_portfolio.value }}</td>
+                <td>{{ opp.unit.name }}</td>
+                <td>{{ opp.revenue_portfolio.name }}</td>
                 <td>${{ "{:,.2f}".format(opp.revenue) }}</td>
                 <td>{{ opp.conversion }}%</td>
                 <td>{{ opp.start_date.strftime('%Y-%m-%d') if opp.start_date else 'N/A' }}</td>
                 <td>{{ opp.end_date.strftime('%Y-%m-%d') if opp.end_date else 'N/A' }}</td>
-                <td>{{ opp.csg_owner.value }}</td>
+                <td>{{ opp.csg_owner.name }}</td>
                 <td>
                     {% if current_user.is_authenticated %}
                         <a href="{{ url_for('edit_opportunity', id=opp.id) }}" class="btn btn-sm btn-outline-info">Edit</a>

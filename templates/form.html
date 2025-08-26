@@ -21,16 +21,16 @@
         <div class="col-md-6">
             <label for="unit" class="form-label">Unit</label>
             <select class="form-select" id="unit" name="unit" required>
-                {% for member in UnitEnum %}
-                <option value="{{ member.name }}" {% if opportunity and opportunity.unit == member %}selected{% endif %}>{{ member.value }}</option>
+                {% for item in all_units %}
+                <option value="{{ item.id }}" {% if opportunity and opportunity.unit_id == item.id %}selected{% endif %}>{{ item.name }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-6">
             <label for="revenue_portfolio" class="form-label">Revenue Portfolio</label>
             <select class="form-select" id="revenue_portfolio" name="revenue_portfolio" required>
-                {% for member in RevenuePortfolioEnum %}
-                <option value="{{ member.name }}" {% if opportunity and opportunity.revenue_portfolio == member %}selected{% endif %}>{{ member.value }}</option>
+                {% for item in all_revenue_portfolios %}
+                <option value="{{ item.id }}" {% if opportunity and opportunity.revenue_portfolio_id == item.id %}selected{% endif %}>{{ item.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -38,16 +38,16 @@
         <div class="col-md-6">
             <label for="csg_owner" class="form-label">CSG Owner</label>
             <select class="form-select" id="csg_owner" name="csg_owner" required>
-                {% for member in CSGOwnerEnum %}
-                <option value="{{ member.name }}" {% if opportunity and opportunity.csg_owner == member %}selected{% endif %}>{{ member.value }}</option>
+                {% for item in all_csg_owners %}
+                <option value="{{ item.id }}" {% if opportunity and opportunity.csg_owner_id == item.id %}selected{% endif %}>{{ item.name }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-6">
             <label for="delivery_owner" class="form-label">Delivery Owner</label>
             <select class="form-select" id="delivery_owner" name="delivery_owner" required>
-                {% for member in DeliveryOwnerEnum %}
-                <option value="{{ member.name }}" {% if opportunity and opportunity.delivery_owner == member %}selected{% endif %}>{{ member.value }}</option>
+                {% for item in all_delivery_owners %}
+                <option value="{{ item.id }}" {% if opportunity and opportunity.delivery_owner_id == item.id %}selected{% endif %}>{{ item.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -55,16 +55,16 @@
         <div class="col-md-6">
             <label for="originating_revenue_type" class="form-label">Originating Revenue Type</label>
             <select class="form-select" id="originating_revenue_type" name="originating_revenue_type" required>
-                {% for member in OriginatingRevenueTypeEnum %}
-                <option value="{{ member.name }}" {% if opportunity and opportunity.originating_revenue_type == member %}selected{% endif %}>{{ member.value }}</option>
+                {% for item in all_originating_revenue_types %}
+                <option value="{{ item.id }}" {% if opportunity and opportunity.originating_revenue_type_id == item.id %}selected{% endif %}>{{ item.name }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-6">
             <label for="revenue_type" class="form-label">Revenue Type</label>
             <select class="form-select" id="revenue_type" name="revenue_type" required>
-                {% for member in RevenueTypeEnum %}
-                <option value="{{ member.name }}" {% if opportunity and opportunity.revenue_type == member %}selected{% endif %}>{{ member.value }}</option>
+                {% for item in all_revenue_types %}
+                <option value="{{ item.id }}" {% if opportunity and opportunity.revenue_type_id == item.id %}selected{% endif %}>{{ item.name }}</option>
                 {% endfor %}
             </select>
         </div>
