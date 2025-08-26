@@ -210,8 +210,55 @@ def dashboard():
 @app.route('/opportunities')
 @login_required
 def opportunities():
-    opportunities = Opportunity.query.order_by(Opportunity.start_date.desc()).all()
-    return render_template('index.html', opportunities=opportunities)
+    query = db.session.query(Opportunity)
+
+    # Filtering
+    filter_unit_id = request.args.get('filter_unit', type=int)
+    if filter_unit_id:
+        query = query.filter(Opportunity.unit_id == filter_unit_id)
+
+    filter_csg_owner_id = request.args.get('filter_csg_owner', type=int)
+    if filter_csg_owner_id:
+        query = query.filter(Opportunity.csg_owner_id == filter_csg_owner_id)
+
+    filter_revenue_portfolio_id = request.args.get('filter_revenue_portfolio', type=int)
+    if filter_revenue_portfolio_id:
+        query = query.filter(Opportunity.revenue_portfolio_id == filter_revenue_portfolio_id)
+
+    # Sorting
+    sort_by = request.args.get('sort_by', 'start_date')
+    sort_direction = request.args.get('sort_direction', 'desc')
+
+    sortable_columns = {
+        'project_name': Opportunity.project_name,
+        'unit': Unit.name,
+        'revenue_portfolio': RevenuePortfolio.name,
+        'revenue': Opportunity.revenue,
+        'conversion': Opportunity.conversion,
+        'start_date': Opportunity.start_date,
+        'end_date': Opportunity.end_date,
+        'csg_owner': CSGOwner.name,
+    }
+
+    if sort_by in sortable_columns:
+        sort_column = sortable_columns[sort_by]
+
+        # Join with related tables if sorting by their columns
+        if sort_by == 'unit': query = query.join(Unit)
+        if sort_by == 'revenue_portfolio': query = query.join(RevenuePortfolio)
+        if sort_by == 'csg_owner': query = query.join(CSGOwner)
+
+        if sort_direction == 'desc':
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+
+    page = request.args.get('page', 1, type=int)
+    pagination = query.paginate(page=page, per_page=20, error_out=False)
+    opportunities = pagination.items
+
+    return render_template('index.html', opportunities=opportunities, pagination=pagination,
+                           sort_by=sort_by, sort_direction=sort_direction, filter_values=request.args)
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
