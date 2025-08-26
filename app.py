@@ -600,8 +600,3 @@ def grant_admin(username):
         click.echo(f"User '{username}' has been granted admin privileges.")
     else:
         click.echo(f"User '{username}' not found.")
-
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all() # Creates the database and tables if they don't exist
-    app.run(host='0.0.0.0', debug=True)
