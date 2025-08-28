@@ -1,9 +1,11 @@
 Flask
 Flask-Login
 Flask-SQLAlchemy
+SQLAlchemy>=2.0.21
 pandas
 python-dotenv
 click
 openpyxl
 XlsxWriter
 gunicorn
+greenlet>=3.0.0

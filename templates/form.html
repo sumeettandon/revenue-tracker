@@ -70,13 +70,6 @@
         </div>
 
         <div class="col-md-6">
-            <label for="revenue" class="form-label">Revenue</label>
-            <div class="input-group">
-                <span class="input-group-text">$</span>
-                <input type="number" step="0.01" class="form-control" id="revenue" name="revenue" value="{{ opportunity.revenue if opportunity else '' }}" required>
-            </div>
-        </div>
-        <div class="col-md-6">
             <label for="conversion" class="form-label">Conversion (%)</label>
             <select class="form-select" id="conversion" name="conversion" required>
                 {% for val in [25, 50, 75, 90, 100] %}
@@ -85,6 +78,17 @@
             </select>
         </div>
 
+        <div class="col-md-6">
+            <label for="revenue" class="form-label">Total Revenue</label>
+            <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" class="form-control" id="revenue" name="revenue" value="{{ opportunity.revenue if opportunity else '0.00' }}" required readonly>
+            </div>
+            <div class="form-text">This is the sum of the quarterly revenues below.</div>
+        </div>
+        <div class="col-md-6">
+            <!-- Spacer -->
+        </div>
         <div class="col-md-6">
             <label for="start_date" class="form-label">Start Date</label>
             <input type="date" class="form-control" id="start_date" name="start_date" value="{{ opportunity.start_date.strftime('%Y-%m-%d') if opportunity and opportunity.start_date else '' }}">
@@ -102,10 +106,141 @@
             <label for="sow_number" class="form-label">SOW Number</label>
             <input type="text" class="form-control" id="sow_number" name="sow_number" value="{{ opportunity.sow_number if opportunity else '' }}">
         </div>
+
+        <div class="col-12">
+            <hr>
+            <h5>Quarterly Revenue Breakdown</h5>
+            <p class="text-muted">Enter start and end dates to generate quarterly fields.</p>
+            <div id="quarterly-revenue-fields" class="row g-3">
+                <!-- Dynamic fields will be injected here by JavaScript -->
+            </div>
+        </div>
     </div>
 
     <hr class="my-4">
 
     <button class="w-100 btn btn-primary btn-lg" type="submit">Save Opportunity</button>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    const quarterlyFieldsContainer = document.getElementById('quarterly-revenue-fields');
+    const totalRevenueInput = document.getElementById('revenue');
+
+    // For edit mode, get existing data passed from the backend
+    const existingRevenues = JSON.parse('{{ quarterly_revenues_json | safe }}');
+
+    /**
+     * Calculates the financial year and quarter for a given date.
+     * Assumes the financial year starts in April.
+     * e.g., FY2026 runs from Apr 2025 to Mar 2026.
+     * @param {Date} date - The date object.
+     * @returns { {year: number, quarter: number} }
+     */
+    function getFinancialQuarter(date) {
+        const month = date.getUTCMonth() + 1; // Use UTC to avoid timezone issues
+        let year = date.getUTCFullYear();
+        let quarter;
+
+        if (month >= 4) { // Apr-Dec
+            year += 1; // Belongs to the FY that ends next year
+        }
+
+        if (month >= 4 && month <= 6) quarter = 1;
+        else if (month >= 7 && month <= 9) quarter = 2;
+        else if (month >= 10 && month <= 12) quarter = 3;
+        else quarter = 4; // Jan-Mar
+
+        return { year: year, quarter: quarter };
+    }
+
+    /**
+     * Increments a financial quarter to the next one.
+     * @param { {year: number, quarter: number} } fq - The financial quarter.
+     * @returns { {year: number, quarter: number} }
+     */
+    function incrementFinancialQuarter(fq) {
+        if (fq.quarter === 4) {
+            return { year: fq.year + 1, quarter: 1 };
+        } else {
+            return { year: fq.year, quarter: fq.quarter + 1 };
+        }
+    }
+
+    /**
+     * Compares two financial quarters.
+     * @param { {year: number, quarter: number} } fq1
+     * @param { {year: number, quarter: number} } fq2
+     * @returns {boolean} - True if fq1 is less than or equal to fq2.
+     */
+    function isFqLessEqual(fq1, fq2) {
+        if (fq1.year < fq2.year) return true;
+        if (fq1.year > fq2.year) return false;
+        return fq1.quarter <= fq2.quarter;
+    }
+
+    function updateQuarterlyFields() {
+        quarterlyFieldsContainer.innerHTML = '';
+        if (!startDateInput.value || !endDateInput.value) {
+            updateTotalRevenue();
+            return;
+        }
+
+        const startDate = new Date(startDateInput.value);
+        const endDate = new Date(endDateInput.value);
+
+        if (startDate > endDate) {
+            updateTotalRevenue();
+            return;
+        }
+
+        let currentFq = getFinancialQuarter(startDate);
+        const endFq = getFinancialQuarter(endDate);
+
+        while (isFqLessEqual(currentFq, endFq)) {
+            const { year, quarter } = currentFq;
+            const fieldId = `quarter_FY${year}_Q${quarter}`;
+            const labelText = `FY${year}-Q${quarter}`;
+            
+            const existing = existingRevenues.find(r => r.financial_year === year && r.quarter === quarter);
+            const existingValue = existing ? existing.revenue : '';
+
+            const fieldHTML = `
+                <div class="col-md-3">
+                    <label for="${fieldId}" class="form-label">${labelText}</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" step="0.01" class="form-control quarterly-revenue-input" id="${fieldId}" name="${fieldId}" value="${existingValue}" placeholder="0.00">
+                    </div>
+                </div>
+            `;
+            quarterlyFieldsContainer.insertAdjacentHTML('beforeend', fieldHTML);
+            currentFq = incrementFinancialQuarter(currentFq);
+        }
+        updateTotalRevenue();
+    }
+
+    function updateTotalRevenue() {
+        let total = 0;
+        document.querySelectorAll('.quarterly-revenue-input').forEach(input => {
+            const value = parseFloat(input.value);
+            if (!isNaN(value)) {
+                total += value;
+            }
+        });
+        totalRevenueInput.value = total.toFixed(2);
+    }
+
+    startDateInput.addEventListener('change', updateQuarterlyFields);
+    endDateInput.addEventListener('change', updateQuarterlyFields);
+    quarterlyFieldsContainer.addEventListener('input', updateTotalRevenue);
+
+    // Initial call to populate fields on page load (for edit mode)
+    updateQuarterlyFields();
+});
+</script>
 {% endblock %}

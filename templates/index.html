@@ -3,7 +3,7 @@
 {% macro sortable_header(column_key, column_title, sort_by, sort_direction, filter_values) %}
     {% set new_direction = 'desc' if sort_by == column_key and sort_direction == 'asc' else 'asc' %}
     <th>
-        <a href="{{ url_for('opportunities', sort_by=column_key, sort_direction=new_direction, **filter_values) }}" class="text-decoration-none text-dark">
+        <a href="{{ url_for('opportunities', page=pagination.page if pagination else 1, sort_by=column_key, sort_direction=new_direction, **filter_values) }}" class="text-decoration-none text-light">
             {{ column_title }}
             {% if sort_by == column_key %}
                 <i class="bi bi-arrow-{{ 'down' if sort_direction == 'desc' else 'up' }}"></i>

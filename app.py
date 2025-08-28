@@ -3,6 +3,7 @@ import enum
 import io
 from functools import wraps
 from datetime import date
+import json
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_file,
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from sqlalchemy import func, extract, inspect
+from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- App Configuration ---
@@ -67,6 +69,17 @@ class RevenueType(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     def __repr__(self): return f'<RevenueType {self.name}>'
 
+class QuarterlyRevenue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    opportunity_id = db.Column(db.Integer, db.ForeignKey('opportunity.id', ondelete='CASCADE'), nullable=False)
+    financial_year = db.Column(db.Integer, nullable=False)
+    quarter = db.Column(db.Integer, nullable=False)
+    revenue = db.Column(db.Float, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint('opportunity_id', 'financial_year', 'quarter', name='uq_opp_fy_q'),)
+
+    def __repr__(self):
+        return f'<QuarterlyRevenue FY{self.financial_year}-Q{self.quarter} for Opp {self.opportunity_id}>'
 class Opportunity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     project_name = db.Column(db.String(200), nullable=False)
@@ -90,6 +103,7 @@ class Opportunity(db.Model):
     delivery_owner = db.relationship('DeliveryOwner', backref=db.backref('opportunities', lazy=True))
     originating_revenue_type = db.relationship('OriginatingRevenueType', backref=db.backref('opportunities', lazy=True))
     revenue_type = db.relationship('RevenueType', backref=db.backref('opportunities', lazy=True))
+    quarterly_revenues = db.relationship('QuarterlyRevenue', backref='opportunity', cascade="all, delete-orphan", lazy='dynamic')
 
     def __repr__(self):
         return f'<Opportunity {self.project_name}>'
@@ -149,8 +163,30 @@ def _populate_opportunity_from_form(opportunity, form_data):
     opportunity.sow_number=form_data['sow_number']
     opportunity.start_date=date.fromisoformat(form_data['start_date']) if form_data['start_date'] else None
     opportunity.end_date=date.fromisoformat(form_data['end_date']) if form_data['end_date'] else None
-    opportunity.revenue=float(form_data['revenue'])
     opportunity.client_director=form_data['client_director']
+
+    # Handle quarterly revenues
+    if opportunity.id: # if editing, clear existing to replace them
+        opportunity.quarterly_revenues.delete()
+        db.session.flush() # flush the delete to avoid constraint issues
+
+    total_quarterly_revenue = 0
+    for key, value in form_data.items():
+        if key.startswith('quarter_FY') and value:
+            try:
+                revenue_value = float(value)
+                parts = key.split('_') # e.g., ['quarter', 'FY2026', 'Q4']
+                fy = int(parts[1][2:])
+                q = int(parts[2][1:])
+                qr = QuarterlyRevenue(financial_year=fy, quarter=q, revenue=revenue_value)
+                opportunity.quarterly_revenues.append(qr)
+                total_quarterly_revenue += revenue_value
+            except (ValueError, IndexError):
+                # Ignore invalid or malformed fields
+                continue
+    
+    # Update total revenue based on the sum of the quarterly breakdown
+    opportunity.revenue = total_quarterly_revenue
 
 # --- Web Routes ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -277,8 +313,9 @@ def add_opportunity():
         _populate_opportunity_from_form(new_opp, request.form)
         db.session.add(new_opp)
         db.session.commit()
+        flash(f'Successfully added opportunity "{new_opp.project_name}".', 'success')
         return redirect(url_for('opportunities'))
-    return render_template('form.html', action="Add", opportunity=None)
+    return render_template('form.html', action="Add", opportunity=None, quarterly_revenues_json='[]')
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -287,8 +324,14 @@ def edit_opportunity(id):
     if request.method == 'POST':
         _populate_opportunity_from_form(opp_to_edit, request.form)
         db.session.commit()
+        flash(f'Successfully updated opportunity "{opp_to_edit.project_name}".', 'success')
         return redirect(url_for('opportunities'))
-    return render_template('form.html', action="Edit", opportunity=opp_to_edit)
+    
+    quarterly_revenues_json = json.dumps([
+        {'financial_year': qr.financial_year, 'quarter': qr.quarter, 'revenue': qr.revenue}
+        for qr in opp_to_edit.quarterly_revenues
+    ])
+    return render_template('form.html', action="Edit", opportunity=opp_to_edit, quarterly_revenues_json=quarterly_revenues_json)
 
 @app.route('/delete/<int:id>', methods=['POST'])
 @login_required
@@ -408,37 +451,37 @@ def upload_spreadsheet():
 @login_required
 def download_spreadsheet():
     """Downloads all data as an Excel file."""
-    query = db.session.query(Opportunity).statement
-    df = pd.read_sql(query, db.engine)
+    # Eagerly load related objects to avoid N+1 query problem
+    opportunities = Opportunity.query.options(
+        joinedload(Opportunity.revenue_portfolio),
+        joinedload(Opportunity.unit),
+        joinedload(Opportunity.csg_owner),
+        joinedload(Opportunity.delivery_owner),
+        joinedload(Opportunity.originating_revenue_type),
+        joinedload(Opportunity.revenue_type)
+    ).all()
 
-    # Create lookup dictionaries for mapping IDs to names
-    lookups = {
-        'revenue_portfolio_id': {p.id: p.name for p in RevenuePortfolio.query.all()},
-        'unit_id': {u.id: u.name for u in Unit.query.all()},
-        'csg_owner_id': {o.id: o.name for o in CSGOwner.query.all()},
-        'delivery_owner_id': {o.id: o.name for o in DeliveryOwner.query.all()},
-        'originating_revenue_type_id': {o.name: o.id for o in OriginatingRevenueType.query.all()},
-        'revenue_type_id': {o.name: o.id for o in RevenueType.query.all()},
-    }
-
-    # Map foreign key IDs to their string names
-    df['Revenue Portfolio'] = df['revenue_portfolio_id'].map(lookups['revenue_portfolio_id'])
-    df['Unit'] = df['unit_id'].map(lookups['unit_id'])
-    df['CSG Owner'] = df['csg_owner_id'].map(lookups['csg_owner_id'])
-    df['Delivery Owner'] = df['delivery_owner_id'].map(lookups['delivery_owner_id'])
-    df['Originating Revenue Type'] = df['originating_revenue_type_id'].map(lookups['originating_revenue_type_id'])
-    df['Revenue Type'] = df['revenue_type_id'].map(lookups['revenue_type_id'])
-
-    # Select and rename columns for the final Excel file
-    df = df.rename(columns={
-        'project_name': 'Opportunity/Project name',
-        'sow_number': 'SOW',
-        'start_date': 'Start Date',
-        'end_date': 'End Date',
-        'client_director': 'Client Director'
-    })
-    output_columns = ['Opportunity/Project name', 'Revenue Portfolio', 'Unit', 'CSG Owner', 'Delivery Owner', 'Originating Revenue Type', 'Revenue Type', 'conversion', 'ritm', 'SOW', 'Start Date', 'End Date', 'revenue', 'Client Director']
-    df = df[output_columns]
+    # Prepare data for DataFrame
+    data_for_df = [
+        {
+            'Opportunity/Project name': opp.project_name,
+            'Revenue Portfolio': opp.revenue_portfolio.name,
+            'Unit': opp.unit.name,
+            'CSG Owner': opp.csg_owner.name,
+            'Delivery Owner': opp.delivery_owner.name,
+            'Originating Revenue Type': opp.originating_revenue_type.name,
+            'Revenue Type': opp.revenue_type.name,
+            'conversion': opp.conversion,
+            'ritm': opp.ritm,
+            'SOW': opp.sow_number,
+            'Start Date': opp.start_date,
+            'End Date': opp.end_date,
+            'revenue': opp.revenue,
+            'Client Director': opp.client_director,
+        }
+        for opp in opportunities
+    ]
+    df = pd.DataFrame(data_for_df)
 
     output = io.BytesIO()
     # Use XlsxWriter to create a more professional-looking Excel file
@@ -446,7 +489,7 @@ def download_spreadsheet():
         df.to_excel(writer, index=False, sheet_name='Opportunities')
         # Auto-adjust column widths
         for column in df:
-            column_width = max(df[column].astype(str).map(len).max(), len(column))
+            column_width = max(df[column].astype(str).map(len).max(), len(column)) + 1
             col_idx = df.columns.get_loc(column)
             writer.sheets['Opportunities'].set_column(col_idx, col_idx, column_width)
 
