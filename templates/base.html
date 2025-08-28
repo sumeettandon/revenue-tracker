@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,21 +37,23 @@
 
       .sidebar .nav-link {
         font-weight: 500;
-        color: #333;
+        color: var(--bs-nav-link-color);
       }
 
       .sidebar .nav-link .bi {
         margin-right: 8px;
-        color: #727272;
+        color: var(--bs-nav-link-color);
+        opacity: 0.75;
       }
 
       .sidebar .nav-link.active {
-        color: #2470dc;
+        color: var(--bs-primary);
       }
 
       .sidebar .nav-link:hover .bi,
       .sidebar .nav-link.active .bi {
         color: inherit;
+        opacity: 1;
       }
 
       .sidebar-heading {
@@ -99,7 +101,7 @@
     <div class="container-fluid">
       <div class="row">
         {% if current_user.is_authenticated %}
-        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-body-tertiary sidebar collapse">
           <div class="position-sticky pt-3 sidebar-sticky">
             <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
               <span>Dashboards</span>
@@ -115,6 +117,12 @@
                     <a class="nav-link" href="{{ url_for('dashboard') }}#revenueByOriginatingTypeChartCard">
                         <i class="bi bi-bar-chart-line"></i>
                         Revenue by Type
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('dashboard') }}#revenueByCSGOwnerChartCard">
+                        <i class="bi bi-person-fill"></i>
+                        Revenue by CSG Owner
                     </a>
                 </li>
             </ul>

@@ -205,7 +205,16 @@ def register():
 @app.route('/')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    # Get distinct years from the database to populate the filter
+    years_query = db.session.query(extract('year', Opportunity.start_date)).distinct().order_by(extract('year', Opportunity.start_date).desc())
+    available_years = [y[0] for y in years_query if y[0] is not None]
+
+    # Get selected year from query params, default to the most recent year if available
+    selected_year = request.args.get('year', type=int)
+    if selected_year is None and available_years:
+        selected_year = available_years[0]
+
+    return render_template('dashboard.html', available_years=available_years, selected_year=selected_year)
 
 @app.route('/opportunities')
 @login_required
@@ -456,18 +465,24 @@ def download_spreadsheet():
 @login_required
 def revenue_by_unit_quarter():
     """API endpoint to get data for the 'Quarterly Revenue Projection' chart."""
-    results = (db.session.query(
+    query = (db.session.query(
         Unit.name.label('unit_name'),
         extract('year', Opportunity.start_date).label('year'),
         extract('quarter', Opportunity.start_date).label('quarter'),
         func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
-    ).join(Unit).filter(
+    ).select_from(Opportunity).join(Opportunity.unit).filter(
         Opportunity.start_date.isnot(None)
-    ).group_by(
+    ))
+
+    year = request.args.get('year', type=int)
+    if year:
+        query = query.filter(extract('year', Opportunity.start_date) == year)
+
+    results = query.group_by(
         'unit_name', 'year', 'quarter'
     ).order_by(
         'year', 'quarter', 'unit_name'
-    )).all()
+    ).all()
 
     # Process data into a format Chart.js can easily use
     data = {}
@@ -494,17 +509,23 @@ def revenue_by_unit_quarter():
 @login_required
 def revenue_by_originating_type():
     """API endpoint for revenue by originating revenue type, grouped by unit."""
-    results = (db.session.query(
+    query = (db.session.query(
         Unit.name.label('unit_name'),
         OriginatingRevenueType.name.label('origin_type_name'),
         func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
-    ).join(Unit).join(OriginatingRevenueType).group_by(
+    ).select_from(Opportunity).join(Opportunity.unit).join(Opportunity.originating_revenue_type))
+
+    year = request.args.get('year', type=int)
+    if year:
+        query = query.filter(extract('year', Opportunity.start_date) == year)
+
+    results = query.group_by(
         'unit_name',
         'origin_type_name'
     ).order_by(
         'unit_name',
         'origin_type_name'
-    )).all()
+    ).all()
 
     # Process data for Chart.js
     data = {}
@@ -524,6 +545,32 @@ def revenue_by_originating_type():
             'data': [data.get(label, {}).get(unit_name, 0) for label in labels],
         }
         datasets.append(dataset)
+
+    return jsonify({'labels': labels, 'datasets': datasets})
+
+@app.route('/api/revenue-by-csg-owner')
+@login_required
+def revenue_by_csg_owner():
+    """API endpoint for revenue by CSG owner."""
+    query = (db.session.query(
+        CSGOwner.name.label('csg_owner_name'),
+        func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
+    ).select_from(Opportunity).join(Opportunity.csg_owner))
+
+    year = request.args.get('year', type=int)
+    if year:
+        query = query.filter(extract('year', Opportunity.start_date) == year)
+
+    results = query.group_by(
+        'csg_owner_name'
+    ).order_by(
+        'csg_owner_name'
+    ).all()
+
+    labels = [row.csg_owner_name for row in results]
+    data_values = [row.projected_revenue for row in results]
+
+    datasets = [{'label': 'Projected Revenue', 'data': data_values}]
 
     return jsonify({'labels': labels, 'datasets': datasets})
 

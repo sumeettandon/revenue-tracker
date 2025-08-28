@@ -5,20 +5,107 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <form method="GET" action="{{ url_for('dashboard') }}" id="year-filter-form" class="d-flex align-items-center">
+            <label for="year_filter" class="col-form-label me-2">Year:</label>
+            <select class="form-select" id="year_filter" name="year" onchange="document.getElementById('year-filter-form').submit();">
+                {% for year in available_years %}
+                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+                {% if not available_years %}
+                    <option>No Data</option>
+                {% endif %}
+            </select>
+        </form>
+    </div>
 </div>
 
-<div class="card mb-4" id="revenueByUnitChartCard">
-    <div class="card-header">Quarterly Revenue Projection by Unit</div>
-    <div class="card-body"><canvas id="revenueByUnitChart" width="100%" height="40"></canvas></div>
-</div>
-
-<div class="card mb-4" id="revenueByOriginatingTypeChartCard">
-    <div class="card-header">Projected Revenue by Originating Type</div>
-    <div class="card-body"><canvas id="revenueByOriginatingTypeChart" width="100%" height="40"></canvas></div>
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card mb-4" id="revenueByUnitChartCard">
+            <div class="card-header">
+                <i class="bi bi-graph-up me-1"></i>
+                Quarterly Revenue Projection
+            </div>
+            <div class="card-body"><canvas id="revenueByUnitChart" width="100%" height="50"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card mb-4" id="revenueByOriginatingTypeChartCard">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-line me-1"></i>
+                Revenue by Originating Type
+            </div>
+            <div class="card-body"><canvas id="revenueByOriginatingTypeChart" width="100%" height="50"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card mb-4" id="revenueByCSGOwnerChartCard">
+            <div class="card-header">
+                <i class="bi bi-person-fill me-1"></i>
+                Revenue by CSG Owner
+            </div>
+            <div class="card-body"><canvas id="revenueByCSGOwnerChart" width="100%" height="50"></canvas></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectedYear = document.getElementById('year_filter').value;
+
+    const chartColors = [
+        'rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)',
+        'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)',
+        'rgba(199, 199, 199, 0.6)', 'rgba(83, 102, 255, 0.6)', 'rgba(40, 159, 64, 0.6)'
+    ];
+
+    function createChart(chartId, chartType, apiUrl, chartTitle) {
+        const ctx = document.getElementById(chartId).getContext('2d');
+        fetch(`${apiUrl}?year=${selectedYear}`)
+            .then(response => response.json())
+            .then(data => {
+                data.datasets.forEach((dataset, index) => {
+                    dataset.backgroundColor = chartColors[index % chartColors.length];
+                });
+
+                new Chart(ctx, {
+                    type: chartType,
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: data.datasets.length > 1 // Only display legend if there's more than one dataset
+                            },
+                            title: {
+                                display: true,
+                                text: chartTitle
+                            }
+                        },
+                        scales: {
+                            x: { stacked: true },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) { return '$' + value.toLocaleString(); }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+    }
+    if (selectedYear && selectedYear !== 'No Data') {
+        createChart('revenueByUnitChart', 'bar', '/api/revenue-by-unit-quarter', 'Quarterly Revenue Projection');
+        createChart('revenueByOriginatingTypeChart', 'bar', '/api/revenue-by-originating-type', 'Revenue by Originating Type');
+        createChart('revenueByCSGOwnerChart', 'bar', '/api/revenue-by-csg-owner', 'Revenue by CSG Owner');
+    }
+});
+</script>
 {% endblock %}
