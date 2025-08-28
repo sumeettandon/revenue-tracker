@@ -25,7 +25,7 @@
         <div class="card mb-4" id="currentQuarterRevenueCard">
             <div class="card-header">
                 <i class="bi bi-pie-chart-fill me-1"></i>
-                Current Quarter Revenue by Unit (FY{{ selected_year }} Q{{ (selected_year - 1) // 4 + 1 if selected_year else '' }})
+                Current Quarter Revenue by Unit (FY{{ current_fy }} Q{{ current_fq }})
             </div>
             <div class="card-body"><canvas id="currentQuarterRevenueChart" width="100%" height="50"></canvas></div>
         </div>
@@ -57,6 +57,24 @@
             <div class="card-body"><canvas id="revenueByCSGOwnerChart" width="100%" height="50"></canvas></div>
         </div>
     </div>
+    <div class="col-lg-6">
+        <div class="card mb-4" id="revenueByDeliveryOwnerChartCard">
+            <div class="card-header">
+                <i class="bi bi-person-workspace me-1"></i>
+                Revenue by Delivery Owner
+            </div>
+            <div class="card-body"><canvas id="revenueByDeliveryOwnerChart" width="100%" height="50"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card mb-4" id="revenueByPortfolioChartCard">
+            <div class="card-header">
+                <i class="bi bi-briefcase-fill me-1"></i>
+                Revenue by Portfolio
+            </div>
+            <div class="card-body"><canvas id="revenueByPortfolioChart" width="100%" height="50"></canvas></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -74,46 +92,71 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function createChart(chartId, chartType, apiUrl, chartTitle) {
         const ctx = document.getElementById(chartId).getContext('2d');
-        fetch(`${apiUrl}?year=${selectedYear}`)
-            .then(response => response.json())
+        fetch(apiUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok for ${apiUrl}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 data.datasets.forEach((dataset, index) => {
-                    dataset.backgroundColor = chartColors[index % chartColors.length];
+                    // For pie/doughnut charts, we need an array of colors for the data.
+                    if (chartType === 'pie' || chartType === 'doughnut') {
+                        dataset.backgroundColor = chartColors;
+                    } else {
+                        dataset.backgroundColor = chartColors[index % chartColors.length];
+                    }
                 });
+
+                const chartOptions = {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            // Display legend for multi-dataset charts or for pie charts
+                            display: data.datasets.length > 1 || chartType === 'pie' || chartType === 'doughnut'
+                        },
+                        title: {
+                            display: true,
+                            text: chartTitle
+                        }
+                    }
+                };
+
+                // Add scales only for bar charts, not for pie charts
+                if (chartType === 'bar') {
+                    chartOptions.scales = {
+                        x: { stacked: true },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) { return '$' + value.toLocaleString(); }
+                            }
+                        }
+                    };
+                }
 
                 new Chart(ctx, {
                     type: chartType,
                     data: data,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: {
-                            legend: {
-                                display: data.datasets.length > 1 // Only display legend if there's more than one dataset
-                            },
-                            title: {
-                                display: true,
-                                text: chartTitle
-                            }
-                        },
-                        scales: {
-                            x: { stacked: true },
-                            y: {
-                                stacked: true,
-                                beginAtZero: true,
-                                ticks: {
-                                    callback: function(value) { return '$' + value.toLocaleString(); }
-                                }
-                            }
-                        }
-                    }
+                    options: chartOptions
                 });
+            })
+            .catch(error => {
+                console.error('Error fetching or creating chart:', chartId, error);
+                const cardBody = document.getElementById(chartId).parentElement;
+                cardBody.innerHTML = `<p class="text-center text-danger">Could not load chart data.</p>`;
             });
     }
     if (selectedYear && selectedYear !== 'No Data') {
-        createChart('revenueByUnitChart', 'bar', '/api/revenue-by-unit-quarter', 'Quarterly Revenue Projection');
-        createChart('revenueByOriginatingTypeChart', 'bar', '/api/revenue-by-originating-type', 'Revenue by Originating Type');
-        createChart('revenueByCSGOwnerChart', 'bar', '/api/revenue-by-csg-owner', 'Revenue by CSG Owner');
+        const yearQuery = `?year=${selectedYear}`;
+        createChart('revenueByUnitChart', 'bar', `/api/revenue-by-unit-quarter${yearQuery}`, 'Quarterly Revenue Projection');
+        createChart('revenueByOriginatingTypeChart', 'bar', `/api/revenue-by-originating-type${yearQuery}`, 'Revenue by Originating Type');
+        createChart('revenueByCSGOwnerChart', 'bar', `/api/revenue-by-csg-owner${yearQuery}`, 'Revenue by CSG Owner');
+        createChart('revenueByDeliveryOwnerChart', 'bar', `/api/revenue-by-delivery-owner${yearQuery}`, 'Revenue by Delivery Owner');
+        createChart('revenueByPortfolioChart', 'bar', `/api/revenue-by-revenue-portfolio${yearQuery}`, 'Revenue by Portfolio');
     }
     // This chart doesn't depend on the year filter, so it's always created.
     createChart('currentQuarterRevenueChart', 'pie', '/api/revenue-by-unit-current-quarter', 'Current Quarter Revenue by Unit');

@@ -155,6 +155,22 @@ def get_current_financial_quarter():
         financial_quarter = 4
     return financial_year, financial_quarter
 
+def _get_revenue_by_dimension(model_class, year_filter):
+    """Helper to generate revenue data grouped by a specific dimension."""
+    query = (db.session.query(
+        model_class.name.label('dimension_name'),
+        func.sum(Opportunity.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
+    ).select_from(Opportunity).join(getattr(Opportunity, model_class.__tablename__)))
+
+    if year_filter:
+        query = query.filter(extract('year', Opportunity.start_date) == year_filter)
+
+    results = query.group_by('dimension_name').order_by('dimension_name').all()
+    labels = [row.dimension_name for row in results]
+    data_values = [row.projected_revenue for row in results]
+    datasets = [{'label': 'Projected Revenue', 'data': data_values}]
+    return jsonify({'labels': labels, 'datasets': datasets})
+
 @app.context_processor
 def inject_lookup_data():
     return {
@@ -269,7 +285,15 @@ def dashboard():
     if selected_year is None and available_years:
         selected_year = available_years[0]
 
-    return render_template('dashboard.html', available_years=available_years, selected_year=selected_year)
+    current_fy, current_fq = get_current_financial_quarter()
+
+    return render_template(
+        'dashboard.html',
+        available_years=available_years,
+        selected_year=selected_year,
+        current_fy=current_fy,
+        current_fq=current_fq
+    )
 
 @app.route('/opportunities')
 @login_required
@@ -720,6 +744,20 @@ def revenue_by_unit_current_quarter():
     datasets = [{'label': 'Projected Revenue', 'data': data_values}]
 
     return jsonify({'labels': labels, 'datasets': datasets})
+
+@app.route('/api/revenue-by-delivery-owner')
+@login_required
+def revenue_by_delivery_owner():
+    """API endpoint for revenue by Delivery owner."""
+    year = request.args.get('year', type=int)
+    return _get_revenue_by_dimension(DeliveryOwner, year)
+
+@app.route('/api/revenue-by-revenue-portfolio')
+@login_required
+def revenue_by_revenue_portfolio():
+    """API endpoint for revenue by Revenue Portfolio."""
+    year = request.args.get('year', type=int)
+    return _get_revenue_by_dimension(RevenuePortfolio, year)
 
 @app.route('/admin/users')
 @admin_required
