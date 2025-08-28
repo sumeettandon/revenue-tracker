@@ -5,6 +5,9 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Upload Spreadsheet</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('download_template') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i>Download Template</a>
+    </div>
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
@@ -19,7 +22,11 @@
 {% endwith %}
 
 {% if current_user.can_upload %}
-    <p>Upload an Excel file (<code>.xlsx</code>) with opportunity data. The file must contain the exact column headers as specified in the project requirements.</p>
+    <div class="alert alert-info">
+        <h4 class="alert-heading">Instructions</h4>
+        <p>Upload an Excel file (<code>.xlsx</code>) with opportunity data. For best results, please download and use the provided template. The template includes dropdown menus for most columns to ensure data consistency.</p>
+        <p class="mb-0">The file must contain the exact column headers as specified in the template.</p>
+    </div>
     <form method="post" enctype="multipart/form-data" class="mt-4">
         <div class="mb-3">
             <input class="form-control" type="file" id="file" name="file" accept=".xlsx, .xls" required>

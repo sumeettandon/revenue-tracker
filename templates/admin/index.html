@@ -4,11 +4,18 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Admin - Manage Lookup Tables</h1>
+    <h1 class="h2">Admin Dashboard</h1>
 </div>
 
-<p>Select a lookup table to manage its values.</p>
+<div class="list-group mb-4">
+    <a href="{{ url_for('manage_users') }}" class="list-group-item list-group-item-action">
+        <h5 class="mb-1">Manage Users</h5>
+        <p class="mb-1 text-muted">Grant or revoke user permissions for uploading and admin access.</p>
+    </a>
+</div>
 
+<h4>Manage Lookup Tables</h4>
+<p>Select a lookup table to manage its values (e.g., Units, CSG Owners).</p>
 <div class="list-group">
     {% for model_name, model_info in models.items() %}
     <a href="{{ url_for('manage_lookup_table', model_name=model_name) }}" class="list-group-item list-group-item-action">

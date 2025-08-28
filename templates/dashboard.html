@@ -22,6 +22,15 @@
 
 <div class="row">
     <div class="col-lg-6">
+        <div class="card mb-4" id="currentQuarterRevenueCard">
+            <div class="card-header">
+                <i class="bi bi-pie-chart-fill me-1"></i>
+                Current Quarter Revenue by Unit (FY{{ selected_year }} Q{{ (selected_year - 1) // 4 + 1 if selected_year else '' }})
+            </div>
+            <div class="card-body"><canvas id="currentQuarterRevenueChart" width="100%" height="50"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
         <div class="card mb-4" id="revenueByUnitChartCard">
             <div class="card-header">
                 <i class="bi bi-graph-up me-1"></i>
@@ -106,6 +115,8 @@ document.addEventListener('DOMContentLoaded', function () {
         createChart('revenueByOriginatingTypeChart', 'bar', '/api/revenue-by-originating-type', 'Revenue by Originating Type');
         createChart('revenueByCSGOwnerChart', 'bar', '/api/revenue-by-csg-owner', 'Revenue by CSG Owner');
     }
+    // This chart doesn't depend on the year filter, so it's always created.
+    createChart('currentQuarterRevenueChart', 'pie', '/api/revenue-by-unit-current-quarter', 'Current Quarter Revenue by Unit');
 });
 </script>
 {% endblock %}

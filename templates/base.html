@@ -125,6 +125,12 @@
                         Revenue by CSG Owner
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('dashboard') }}#currentQuarterRevenueCard">
+                        <i class="bi bi-pie-chart-fill"></i>
+                        Current Quarter Revenue
+                    </a>
+                </li>
             </ul>
             <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
               <span>Opportunities</span>
@@ -149,8 +155,13 @@
             </h6>
             <ul class="nav flex-column ms-2">
                 <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('manage_users') }}">
+                        <i class="bi bi-people-fill"></i> Manage Users
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('admin_index') }}">
-                        <i class="bi bi-gear-fill"></i> Manage Lookups
+                        <i class="bi bi-gear-fill"></i> Admin Dashboard
                     </a>
                 </li>
             </ul>

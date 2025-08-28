@@ -6,6 +6,8 @@ from datetime import date
 import json
 
 import pandas as pd
+from xlsxwriter.workbook import Workbook
+from xlsxwriter.utility import xl_col_to_name
 from dotenv import load_dotenv
 import click # Keep click here as it's used for CLI commands
 from flask import Flask, render_template, request, redirect, url_for, send_file, jsonify, flash, session
@@ -135,6 +137,23 @@ def admin_required(f):
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
+def get_current_financial_quarter():
+    """
+    Calculates the current financial year and quarter.
+    Assumes the financial year starts in April.
+    """
+    today = date.today()
+    month = today.month
+    year = today.year
+
+    if month >= 4:
+        financial_year = year + 1
+        financial_quarter = ((month - 4) // 3) + 1
+    else:
+        financial_year = year
+        financial_quarter = 4
+    return financial_year, financial_quarter
 
 @app.context_processor
 def inject_lookup_data():
@@ -502,6 +521,66 @@ def download_spreadsheet():
         download_name='opportunity_tracker.xlsx'
     )
 
+@app.route('/download-template')
+@login_required
+def download_template():
+    """Generates and serves the Excel template for uploading opportunities."""
+    output = io.BytesIO()
+    workbook = Workbook(output, {'in_memory': True})
+    worksheet = workbook.add_worksheet('Opportunities')
+
+    # Define headers from the upload column map
+    headers = [
+        'Opportunity/Project name', 'Revenue Portfolio', 'Unit', 'CSG Owner',
+        'Delivery Owner', 'Originating Revenue Type', 'Revenue Type',
+        'Conversion', 'RITM', 'SOW', 'Start Date', 'End Date', 'Revenue',
+        'Client Director'
+    ]
+    worksheet.write_row('A1', headers)
+    worksheet.freeze_panes(1, 0) # Freeze header row
+
+    # --- Add data validation dropdowns for lookup columns ---
+    lookups = {
+        'B': RevenuePortfolio.query.order_by(RevenuePortfolio.name).all(),
+        'C': Unit.query.order_by(Unit.name).all(),
+        'D': CSGOwner.query.order_by(CSGOwner.name).all(),
+        'E': DeliveryOwner.query.order_by(DeliveryOwner.name).all(),
+        'F': OriginatingRevenueType.query.order_by(OriginatingRevenueType.name).all(),
+        'G': RevenueType.query.order_by(RevenueType.name).all(),
+    }
+    lookup_sheet = workbook.add_worksheet('Lookups')
+    lookup_sheet.hide()
+    for col_idx, (col_letter, items) in enumerate(lookups.items()):
+        values = [item.name for item in items]
+        lookup_sheet.write_column(f'{chr(65 + col_idx)}1', values)
+        formula = f"=Lookups!${chr(65 + col_idx)}$1:${chr(65 + col_idx)}${len(values)}"
+        worksheet.data_validation(f'{col_letter}2:{col_letter}1048576',
+                                  {'validate': 'list', 'source': formula})
+
+    # Add data validation for 'Conversion'
+    conversions = [25, 50, 75, 90, 100]
+    lookup_sheet.write_column('G1', conversions)
+    worksheet.data_validation('H2:H1048576', {'validate': 'list', 'source': f'=Lookups!$G$1:$G${len(conversions)}'})
+
+    # Add formatting and comments for guidance
+    date_format = workbook.add_format({'num_format': 'yyyy-mm-dd'})
+    worksheet.set_column('K:L', 12, date_format)
+    worksheet.write_comment('K1', 'Enter dates in YYYY-MM-DD format.')
+    worksheet.write_comment('L1', 'Enter dates in YYYY-MM-DD format.')
+    currency_format = workbook.add_format({'num_format': '$#,##0.00'})
+    worksheet.set_column('M:M', 12, currency_format)
+
+    worksheet.autofit()
+    workbook.close()
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='opportunity_upload_template.xlsx'
+    )
+
 # --- API Endpoints for Dashboard ---
 
 @app.route('/api/revenue-by-unit-quarter')
@@ -616,6 +695,61 @@ def revenue_by_csg_owner():
     datasets = [{'label': 'Projected Revenue', 'data': data_values}]
 
     return jsonify({'labels': labels, 'datasets': datasets})
+
+@app.route('/api/revenue-by-unit-current-quarter')
+@login_required
+def revenue_by_unit_current_quarter():
+    """API endpoint for revenue by unit for the current financial quarter."""
+    fy, fq = get_current_financial_quarter()
+
+    results = (db.session.query(
+        Unit.name.label('unit_name'),
+        func.sum(QuarterlyRevenue.revenue * (Opportunity.conversion / 100.0)).label('projected_revenue')
+    ).select_from(QuarterlyRevenue)
+     .join(QuarterlyRevenue.opportunity)
+     .join(Opportunity.unit)
+     .filter(QuarterlyRevenue.financial_year == fy)
+     .filter(QuarterlyRevenue.quarter == fq)
+     .group_by(Unit.name)
+     .order_by(Unit.name)
+    ).all()
+
+    labels = [row.unit_name for row in results]
+    data_values = [row.projected_revenue for row in results]
+
+    datasets = [{'label': 'Projected Revenue', 'data': data_values}]
+
+    return jsonify({'labels': labels, 'datasets': datasets})
+
+@app.route('/admin/users')
+@admin_required
+def manage_users():
+    users = User.query.order_by(User.username).all()
+    return render_template('admin/manage_users.html', users=users)
+
+@app.route('/admin/user/<int:id>/toggle-upload', methods=['POST'])
+@admin_required
+def toggle_user_upload(id):
+    user = db.get_or_404(User, id)
+    if user.id == current_user.id:
+        flash("Admins cannot change their own upload permissions.", "warning")
+    else:
+        user.can_upload = not user.can_upload
+        db.session.commit()
+        flash(f"Upload permission for {user.username} has been updated.", "success")
+    return redirect(url_for('manage_users'))
+
+@app.route('/admin/user/<int:id>/toggle-admin', methods=['POST'])
+@admin_required
+def toggle_user_admin(id):
+    user = db.get_or_404(User, id)
+    if user.id == current_user.id:
+        flash("Admins cannot revoke their own admin status.", "warning")
+    else:
+        user.is_admin = not user.is_admin
+        db.session.commit()
+        flash(f"Admin status for {user.username} has been updated.", "success")
+    return redirect(url_for('manage_users'))
 
 # --- Admin Routes ---
 
