@@ -120,12 +120,53 @@ document.addEventListener('DOMContentLoaded', function () {
                         title: {
                             display: true,
                             text: chartTitle
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+
+                                    // For pie charts, the main label for the tooltip is the slice's label
+                                    if (context.chart.config.type === 'pie' || context.chart.config.type === 'doughnut') {
+                                        label = context.label || '';
+                                    }
+
+                                    if (label) {
+                                        label += ': ';
+                                    }
+
+                                    // Use parsed.y for bar charts, and raw for pie charts.
+                                    const value = context.parsed.y ?? context.raw;
+
+                                    // Format the value as currency
+                                    if (typeof value === 'number') {
+                                        label += new Intl.NumberFormat('en-US', {
+                                            style: 'currency',
+                                            currency: 'USD'
+                                        }).format(value);
+                                    }
+
+                                    return label;
+                                },
+                                footer: function(tooltipItems) {
+                                    // Only show a footer for stacked charts where there are multiple items
+                                    if (tooltipItems.length <= 1) {
+                                        return '';
+                                    }
+                                    let sum = tooltipItems.reduce((acc, item) => acc + item.parsed.y, 0);
+                                    return 'Total: ' + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sum);
+                                }
+                            }
                         }
                     }
                 };
 
                 // Add scales only for bar charts, not for pie charts
                 if (chartType === 'bar') {
+                    chartOptions.interaction = {
+                        mode: 'index',
+                        intersect: false,
+                    };
                     chartOptions.scales = {
                         x: { stacked: true },
                         y: {

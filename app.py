@@ -300,6 +300,11 @@ def dashboard():
 def opportunities():
     query = db.session.query(Opportunity)
 
+    # Search
+    search_term = request.args.get('search', type=str, default='').strip()
+    if search_term:
+        query = query.filter(Opportunity.project_name.ilike(f'%{search_term}%'))
+
     # Filtering
     filter_unit_id = request.args.get('filter_unit', type=int)
     if filter_unit_id:
@@ -341,12 +346,21 @@ def opportunities():
         else:
             query = query.order_by(sort_column.asc())
 
+    # Make a mutable copy of request.args to pass to the template.
+    # We remove 'page', 'sort_by', and 'sort_direction' because they are
+    # handled explicitly by the pagination and sorting controls.
+    filter_values = request.args.copy()
+    filter_values.pop('page', None)
+    filter_values.pop('sort_by', None)
+    filter_values.pop('sort_direction', None)
+
     page = request.args.get('page', 1, type=int)
     pagination = query.paginate(page=page, per_page=20, error_out=False)
     opportunities = pagination.items
 
     return render_template('index.html', opportunities=opportunities, pagination=pagination,
-                           sort_by=sort_by, sort_direction=sort_direction, filter_values=request.args)
+                           sort_by=sort_by, sort_direction=sort_direction,
+                           filter_values=filter_values)
 
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -450,7 +464,6 @@ def upload_spreadsheet():
                     'SOW': 'sow_number',
                     'Start Date': 'start_date',
                     'End Date': 'end_date',
-                    'Revenue': 'revenue',
                     'Client Director': 'client_director',
                 }
 
@@ -477,11 +490,14 @@ def upload_spreadsheet():
                         else:
                             opp_data[attr_name] = value
 
-                    new_opp = Opportunity(**opp_data)
+                    # Revenue is now calculated from quarterly data, so default to 0 on upload.
+                    # User must edit the opportunity to add the breakdown.
+                    new_opp = Opportunity(**opp_data, revenue=0.0)
                     db.session.add(new_opp)
 
                 db.session.commit()
                 flash('Spreadsheet uploaded and data imported successfully!', 'success')
+                flash('Please edit the newly added opportunities to add the quarterly revenue breakdown.', 'info')
                 return redirect(url_for('opportunities'))
             except Exception as e:
                 db.session.rollback()
@@ -557,7 +573,7 @@ def download_template():
     headers = [
         'Opportunity/Project name', 'Revenue Portfolio', 'Unit', 'CSG Owner',
         'Delivery Owner', 'Originating Revenue Type', 'Revenue Type',
-        'Conversion', 'RITM', 'SOW', 'Start Date', 'End Date', 'Revenue',
+        'Conversion', 'RITM', 'SOW', 'Start Date', 'End Date',
         'Client Director'
     ]
     worksheet.write_row('A1', headers)
@@ -591,8 +607,6 @@ def download_template():
     worksheet.set_column('K:L', 12, date_format)
     worksheet.write_comment('K1', 'Enter dates in YYYY-MM-DD format.')
     worksheet.write_comment('L1', 'Enter dates in YYYY-MM-DD format.')
-    currency_format = workbook.add_format({'num_format': '$#,##0.00'})
-    worksheet.set_column('M:M', 12, currency_format)
 
     worksheet.autofit()
     workbook.close()

@@ -3,7 +3,7 @@
 {% macro sortable_header(column_key, column_title, sort_by, sort_direction, filter_values) %}
     {% set new_direction = 'desc' if sort_by == column_key and sort_direction == 'asc' else 'asc' %}
     <th>
-        <a href="{{ url_for('opportunities', page=pagination.page if pagination else 1, sort_by=column_key, sort_direction=new_direction, **filter_values) }}" class="text-decoration-none text-light">
+        <a href="{{ url_for('opportunities', page=1, sort_by=column_key, sort_direction=new_direction, **filter_values) }}" class="text-decoration-none text-light">
             {{ column_title }}
             {% if sort_by == column_key %}
                 <i class="bi bi-arrow-{{ 'down' if sort_direction == 'desc' else 'up' }}"></i>
@@ -27,36 +27,40 @@
 
 <form method="GET" action="{{ url_for('opportunities') }}" class="mb-4 p-3 border bg-body-tertiary rounded">
     <div class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label for="filter_unit" class="form-label">Filter by Unit</label>
+        <div class="col-md-4">
+            <label for="search" class="form-label">Search by Project Name</label>
+            <input type="text" class="form-control" id="search" name="search" placeholder="Enter project name..." value="{{ filter_values.get('search', '') }}">
+        </div>
+        <div class="col-md-2">
+            <label for="filter_unit" class="form-label">Unit</label>
             <select class="form-select" id="filter_unit" name="filter_unit">
-                <option value="">All Units</option>
+                <option value="">All</option>
                 {% for unit in all_units %}
                     <option value="{{ unit.id }}" {% if filter_values.get('filter_unit') == unit.id|string %}selected{% endif %}>{{ unit.name }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-3">
-            <label for="filter_csg_owner" class="form-label">Filter by CSG Owner</label>
+        <div class="col-md-2">
+            <label for="filter_csg_owner" class="form-label">CSG Owner</label>
             <select class="form-select" id="filter_csg_owner" name="filter_csg_owner">
-                <option value="">All CSG Owners</option>
+                <option value="">All</option>
                 {% for owner in all_csg_owners %}
                     <option value="{{ owner.id }}" {% if filter_values.get('filter_csg_owner') == owner.id|string %}selected{% endif %}>{{ owner.name }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-3">
-            <label for="filter_revenue_portfolio" class="form-label">Filter by Revenue Portfolio</label>
+        <div class="col-md-2">
+            <label for="filter_revenue_portfolio" class="form-label">Portfolio</label>
             <select class="form-select" id="filter_revenue_portfolio" name="filter_revenue_portfolio">
-                <option value="">All Portfolios</option>
+                <option value="">All</option>
                 {% for portfolio in all_revenue_portfolios %}
                     <option value="{{ portfolio.id }}" {% if filter_values.get('filter_revenue_portfolio') == portfolio.id|string %}selected{% endif %}>{{ portfolio.name }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-3 d-grid gap-2">
-            <button type="submit" class="btn btn-primary">Filter</button>
-            <a href="{{ url_for('opportunities') }}" class="btn btn-secondary">Clear Filters</a>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary w-100">Filter</button>
+            <a href="{{ url_for('opportunities') }}" class="btn btn-secondary w-100">Clear</a>
         </div>
     </div>
 </form>
